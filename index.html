@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>내 주변 병원 찾기</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         html, body {
             width: 100%;
@@ -17,11 +13,7 @@
             font-family: 'Malgun Gothic', dotum, sans-serif;
         }
 
-        .container {
-            display: flex;
-            width: 100%;
-            height: 100%;
-        }
+        .container { display: flex; width: 100%; height: 100%; }
 
         /* 왼쪽 사이드바 */
         .sidebar {
@@ -61,16 +53,19 @@
             border-bottom: 3px solid #e63946;
         }
 
-        .tab-btn:hover:not(.active) {
-            color: #555;
+        .tab-btn:hover:not(.active) { color: #555; }
+
+        /* 검색 결과 카운트 */
+        .result-count {
+            padding: 8px 16px;
+            font-size: 12px;
+            color: #888;
+            border-bottom: 1px solid #f0f0f0;
+            background: #fafafa;
         }
 
         /* 검색 결과 리스트 */
-        .places-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 8px 0;
-        }
+        .places-list { flex: 1; overflow-y: auto; padding: 8px 0; }
 
         .place-item {
             padding: 14px 16px;
@@ -79,29 +74,16 @@
             transition: background-color 0.15s;
         }
 
-        .place-item:hover {
-            background-color: #fff5f5;
-        }
+        .place-item:hover { background-color: #fff5f5; }
 
-        .place-item h5 {
-            font-size: 14px;
-            color: #222;
-            margin-bottom: 4px;
-        }
+        .place-item h5 { font-size: 14px; color: #222; margin-bottom: 4px; }
 
-        .place-item .address {
-            display: block;
-            font-size: 12px;
-            color: #888;
-        }
+        .place-item .address { display: block; font-size: 12px; color: #888; }
 
         /* 오른쪽 지도 영역 */
-        .map-area {
-            flex: 1;
-            height: 100%;
-        }
+        .map-area { flex: 1; height: 100%; }
 
-        /* 커스텀 말풍선 (인포윈도우) */
+        /* 커스텀 말풍선 */
         .custom-infowindow {
             background: #fff;
             border-radius: 8px;
@@ -119,16 +101,11 @@
             margin-bottom: 5px;
         }
 
-        .custom-infowindow .phone {
-            font-size: 12px;
-            color: #555;
-            margin-bottom: 6px;
-        }
+        .custom-infowindow .phone { font-size: 12px; color: #555; margin-bottom: 6px; }
 
         .custom-infowindow .kakao-link {
             display: inline-block;
             font-size: 12px;
-            color: #fff;
             background-color: #fee500;
             color: #3c1e1e;
             padding: 4px 10px;
@@ -137,11 +114,8 @@
             font-weight: 600;
         }
 
-        .custom-infowindow .kakao-link:hover {
-            background-color: #fada0a;
-        }
+        .custom-infowindow .kakao-link:hover { background-color: #fada0a; }
 
-        /* 검색 결과 없음 메시지 */
         .no-result {
             padding: 30px 16px;
             text-align: center;
@@ -155,9 +129,12 @@
         <div class="sidebar">
             <!-- 탭 버튼 -->
             <div class="tab-bar">
-                <button class="tab-btn active" id="tab-home" onclick="switchTab('home')">🏠 집 주변</button>
-                <button class="tab-btn" id="tab-school" onclick="switchTab('school')">🏫 학교 주변</button>
+                <button class="tab-btn active" id="tab-home" onclick="switchTab('home')">🏠 집 주변 (부천)</button>
+                <button class="tab-btn" id="tab-school" onclick="switchTab('school')">🏫 학교 주변 (식사동)</button>
             </div>
+
+            <!-- 검색 결과 카운트 -->
+            <div id="resultCount" class="result-count" style="display:none;"></div>
 
             <!-- 검색 결과 리스트 -->
             <div id="placesList" class="places-list">
@@ -176,22 +153,21 @@
         let infowindow;
         let markers = [];
         let currentTab = 'home';
+        let isSearching = false; // 중복 검색 방지 플래그
 
-        // 탭별 지도 중심 좌표 설정
+        // 탭별 지도 중심 좌표 및 검색 반경 설정
         const TAB_CONFIG = {
             home: {
-                // 부천 상동
-                lat: 37.5037,
+                lat: 37.5034,   // 부천시청 기준
                 lng: 126.7660,
-                level: 5,
-                label: '집 주변 (부천 상동)'
+                level: 8,       // 부천 전체가 보이는 레벨
+                radius: 10000   // 반경 10km (부천 전체 커버)
             },
             school: {
-                // 고양국제고등학교 / 식사동 중간
-                lat: 37.6620,
-                lng: 126.8290,
-                level: 5,
-                label: '학교 주변 (고양국제고 · 식사동)'
+                lat: 37.6660,   // 식사동 중심
+                lng: 126.8300,
+                level: 7,       // 식사동 전체가 보이는 레벨
+                radius: 3000    // 반경 3km (식사동 전체 커버)
             }
         };
 
@@ -203,20 +179,19 @@
             const mapContainer = document.getElementById('map');
             const config = TAB_CONFIG['home'];
 
-            const mapOption = {
+            map = new kakao.maps.Map(mapContainer, {
                 center: new kakao.maps.LatLng(config.lat, config.lng),
                 level: config.level
-            };
+            });
 
-            map = new kakao.maps.Map(mapContainer, mapOption);
             ps = new kakao.maps.services.Places();
             infowindow = new kakao.maps.InfoWindow({ zIndex: 1 });
 
-            // 현재 위치 가져오기 (빛나는 별 마커 표시)
+            // 현재 위치 가져오기
             getUserLocation();
 
-            // 초기 탭(집 주변) 병원 검색
-            searchHospitalByTab('home');
+            // 초기 탭(부천 전체) 병원 검색
+            searchAllHospitals('home');
         });
 
         // 사용자 현재 위치를 가져오는 함수
@@ -232,45 +207,13 @@
             }
         }
 
-        // 현재 위치에 빛나는 붉은 별 마커를 표시하는 함수
+        // 현재 위치에 별 이모지만 표시하는 함수 (글로우 없음)
         function displayMyLocationMarker(locPosition) {
-            // 기존 내 위치 마커 제거
             if (myLocationMarker) {
                 myLocationMarker.setMap(null);
             }
 
-            // 빛나는 붉은 별 SVG 커스텀 오버레이
-            const starContent = `
-                <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
-                    <div style="
-                        position:absolute;
-                        width:30px; height:30px;
-                        border-radius:50%;
-                        background:rgba(230,57,70,0.25);
-                        animation: pulse 1.6s ease-in-out infinite;
-                    "></div>
-                    <div style="
-                        position:absolute;
-                        width:18px; height:18px;
-                        border-radius:50%;
-                        background:rgba(230,57,70,0.4);
-                        animation: pulse 1.6s ease-in-out infinite 0.3s;
-                    "></div>
-                    <span style="
-                        position:relative;
-                        font-size:18px;
-                        line-height:1;
-                        filter: drop-shadow(0 0 4px rgba(230,57,70,0.9));
-                    ">⭐</span>
-                    <style>
-                        @keyframes pulse {
-                            0%   { transform: scale(1);   opacity: 0.8; }
-                            50%  { transform: scale(1.6); opacity: 0.2; }
-                            100% { transform: scale(1);   opacity: 0.8; }
-                        }
-                    </style>
-                </div>
-            `;
+            const starContent = `<span style="font-size:22px; line-height:1; display:block;">⭐</span>`;
 
             myLocationMarker = new kakao.maps.CustomOverlay({
                 position: locPosition,
@@ -284,7 +227,7 @@
 
         // 탭 전환 함수
         function switchTab(tabName) {
-            if (currentTab === tabName) return;
+            if (currentTab === tabName || isSearching) return;
 
             currentTab = tabName;
 
@@ -296,41 +239,59 @@
             removeMarkers();
             infowindow.close();
 
-            // 해당 탭 지도 중심으로 이동
+            // 해당 탭 지도 중심 및 레벨 이동
             const config = TAB_CONFIG[tabName];
             map.setCenter(new kakao.maps.LatLng(config.lat, config.lng));
             map.setLevel(config.level);
 
-            // 병원 검색
-            searchHospitalByTab(tabName);
+            // 결과 카운트 숨기기
+            document.getElementById('resultCount').style.display = 'none';
+
+            // 병원 전체 검색 실행
+            searchAllHospitals(tabName);
         }
 
-        // 탭별 카테고리 병원 검색 함수 (HP8 = 병원)
-        function searchHospitalByTab(tabName) {
+        // 모든 페이지를 순차적으로 불러와 병원 전체를 수집하는 함수
+        function searchAllHospitals(tabName) {
             const config = TAB_CONFIG[tabName];
             const center = new kakao.maps.LatLng(config.lat, config.lng);
 
             const options = {
                 location: center,
-                radius: 2000,      // 반경 2km
+                radius: config.radius,
                 sort: kakao.maps.services.SortBy.DISTANCE
             };
 
+            isSearching = true;
             document.getElementById('placesList').innerHTML = '<div class="no-result">검색 중...</div>';
 
-            // HP8: 병원 카테고리 코드
-            ps.categorySearch('HP8', placesSearchCB, options);
-        }
+            let allPlaces = []; // 전체 수집된 장소 배열
 
-        // 장소 검색 완료 콜백 함수
-        function placesSearchCB(data, status) {
-            if (status === kakao.maps.services.Status.OK) {
-                displayPlaces(data);
-            } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
-                document.getElementById('placesList').innerHTML = '<div class="no-result">검색 결과가 없습니다.</div>';
-            } else if (status === kakao.maps.services.Status.ERROR) {
-                document.getElementById('placesList').innerHTML = '<div class="no-result">검색 중 오류가 발생했습니다.</div>';
+            // 페이지별 콜백 함수 (재귀적으로 다음 페이지 호출)
+            function pageCallback(data, status, pagination) {
+                if (status === kakao.maps.services.Status.OK) {
+                    // 현재 페이지 결과를 전체 배열에 추가
+                    allPlaces = allPlaces.concat(data);
+
+                    // 다음 페이지가 있으면 계속 요청
+                    if (pagination.hasNextPage) {
+                        pagination.nextPage();
+                    } else {
+                        // 모든 페이지 수집 완료 → 한번에 표시
+                        isSearching = false;
+                        displayPlaces(allPlaces);
+                    }
+                } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+                    isSearching = false;
+                    document.getElementById('placesList').innerHTML = '<div class="no-result">검색 결과가 없습니다.</div>';
+                } else if (status === kakao.maps.services.Status.ERROR) {
+                    isSearching = false;
+                    document.getElementById('placesList').innerHTML = '<div class="no-result">검색 중 오류가 발생했습니다.</div>';
+                }
             }
+
+            // HP8: 병원 카테고리 코드
+            ps.categorySearch('HP8', pageCallback, options);
         }
 
         // 검색 결과 마커 및 리스트를 표시하는 함수
@@ -341,20 +302,27 @@
             removeMarkers();
             listEl.innerHTML = '';
 
+            // 검색 결과 수 표시
+            const countEl = document.getElementById('resultCount');
+            countEl.style.display = 'block';
+            countEl.textContent = `병원 ${places.length}개 검색됨`;
+
             for (let i = 0; i < places.length; i++) {
                 const placePosition = new kakao.maps.LatLng(places[i].y, places[i].x);
-                const marker = addMarker(placePosition, places[i]);
+                const marker = addMarker(placePosition);
                 const itemEl = getListItem(i, places[i]);
 
                 bounds.extend(placePosition);
 
-                // 마커/리스트 아이템 이벤트 등록 (클로저로 변수 고정)
+                // 마커/리스트 클릭 이벤트 등록 (클로저로 변수 고정)
                 (function(marker, place) {
+                    // 마커 클릭 시 말풍선 표시
                     kakao.maps.event.addListener(marker, 'click', function() {
                         displayInfowindow(marker, place);
                         map.panTo(marker.getPosition());
                     });
 
+                    // 리스트 아이템 클릭 시 지도 이동 및 말풍선 표시
                     itemEl.onclick = function() {
                         map.panTo(marker.getPosition());
                         displayInfowindow(marker, place);
@@ -371,7 +339,6 @@
         function getListItem(index, place) {
             const el = document.createElement('div');
             el.className = 'place-item';
-
             const address = place.road_address_name || place.address_name;
             el.innerHTML = `
                 <h5>${place.place_name}</h5>
@@ -381,16 +348,15 @@
         }
 
         // 빨간 작은 동그라미 커스텀 마커를 생성하는 함수
-        function addMarker(position, place) {
+        function addMarker(position) {
             const dotContent = `
                 <div style="
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    background-color: #e63946;
-                    border: 2px solid #fff;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-                    cursor: pointer;
+                    width:12px; height:12px;
+                    border-radius:50%;
+                    background-color:#e63946;
+                    border:2px solid #fff;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.4);
+                    cursor:pointer;
                 "></div>
             `;
 
@@ -404,7 +370,7 @@
 
             marker.setMap(map);
 
-            // getPosition() 메서드 직접 제공 (CustomOverlay는 기본 제공 안 함)
+            // CustomOverlay는 getPosition()이 없으므로 직접 추가
             marker.getPosition = function() { return position; };
 
             markers.push(marker);
@@ -415,7 +381,6 @@
         function displayInfowindow(marker, place) {
             const phone = place.phone || '전화번호 없음';
             const kakaoUrl = place.place_url || '#';
-            const address = place.road_address_name || place.address_name;
 
             const content = `
                 <div class="custom-infowindow">
